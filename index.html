@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="description" content="중학생이 비율 변화, 반복 곱셈, 누적 수익률과 지수적 변화를 체험하는 수학 시뮬레이션" />
+  <title>지수 주식 실험실</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div id="app" class="app-shell">
+    <header class="topbar">
+      <button id="homeBtn" class="brand-button" type="button" aria-label="처음 화면으로 이동">
+        <span class="brand-mark" aria-hidden="true">×</span>
+        <span>
+          <strong>지수 주식 실험실</strong>
+          <small>비율 변화 · 반복 곱셈 · 누적 수익률</small>
+        </span>
+      </button>
+      <div class="topbar-actions">
+        <span id="connectionBadge" class="badge badge-neutral">연결 확인 중</span>
+        <button id="disclaimerBtn" class="ghost-button compact" type="button">수학 시뮬레이션 안내</button>
+      </div>
+    </header>
+
+    <div id="modeBanner" class="mode-banner hidden" role="status"></div>
+    <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+    <main>
+      <section id="homeScreen" class="screen active" data-screen="home">
+        <div class="hero panel">
+          <div class="hero-copy">
+            <p class="eyebrow">중학교 수학 탐구 활동</p>
+            <h1>같은 시장, 다른 판단.<br />결과는 왜 달라질까?</h1>
+            <p class="hero-description">
+              20번의 시장 변화 속에서 10만 원씩 투자하거나 회수하며, 변화율이 단순히 더해지는 것이 아니라
+              <strong>곱셈으로 누적</strong>되는 과정을 확인합니다.
+            </p>
+            <div class="concept-chips" aria-label="학습 개념">
+              <span>백분율</span><span>비율 변화</span><span>반복 곱셈</span><span>거듭제곱</span><span>지수적 변화</span>
+            </div>
+          </div>
+          <div class="hero-math" aria-label="누적 변화 예시">
+            <span>1,000,000</span>
+            <span class="math-arrow">× 1.10</span>
+            <span class="math-arrow">× 0.90</span>
+            <strong>= 990,000</strong>
+            <small>+10% 후 -10%는 원금이 아닙니다.</small>
+          </div>
+        </div>
+
+        <div class="mode-grid">
+          <button class="mode-card" id="studentModeBtn" type="button">
+            <span class="mode-icon" aria-hidden="true">👥</span>
+            <strong>학생으로 참여</strong>
+            <span>선생님이 알려준 방 코드로 같은 시장에 참여합니다.</span>
+          </button>
+          <button class="mode-card" id="teacherModeBtn" type="button">
+            <span class="mode-icon" aria-hidden="true">📊</span>
+            <strong>교사 모드</strong>
+            <span>수업방을 만들고 학생들의 진행과 판단을 비교합니다.</span>
+          </button>
+          <button class="mode-card" id="practiceModeBtn" type="button">
+            <span class="mode-icon" aria-hidden="true">🧪</span>
+            <strong>혼자 연습</strong>
+            <span>방 없이 바로 시작해 누적 수익률을 실험합니다.</span>
+          </button>
+        </div>
+
+        <div id="resumeCard" class="panel resume-card hidden">
+          <div>
+            <p class="eyebrow">저장된 진행 발견</p>
+            <h2 id="resumeTitle">이전 게임을 이어갈 수 있습니다.</h2>
+            <p id="resumeText" class="muted"></p>
+          </div>
+          <div class="button-row">
+            <button id="resumeBtn" class="primary-button" type="button">이어하기</button>
+            <button id="discardResumeBtn" class="secondary-button" type="button">새로 시작</button>
+          </div>
+        </div>
+
+        <p class="persistent-disclaimer">
+          이 프로그램은 실제 투자 방법을 추천하거나 미래 주가를 예측하지 않습니다. 비율과 지수적 변화를 이해하기 위한 수학 시뮬레이션입니다.
+        </p>
+      </section>
+
+      <section id="studentJoinScreen" class="screen" data-screen="student-join">
+        <div class="panel narrow-panel">
+          <p class="eyebrow">학생 참여</p>
+          <h2>수업방에 들어가기</h2>
+          <form id="studentJoinForm" class="stack-form">
+            <label>
+              이름 또는 별명
+              <input id="nicknameInput" maxlength="20" autocomplete="nickname" placeholder="예: 피타고라스7" required />
+            </label>
+            <label>
+              방 코드
+              <input id="roomCodeInput" maxlength="12" inputmode="text" autocomplete="off" placeholder="MATH-4821" required />
+            </label>
+            <button class="primary-button" type="submit">참여하기</button>
+          </form>
+          <p class="helper-text">실명을 입력할 필요가 없습니다. 별명은 2~20자로 입력하세요.</p>
+        </div>
+      </section>
+
+      <section id="teacherScreen" class="screen" data-screen="teacher">
+        <div class="teacher-layout">
+          <div class="panel teacher-room-panel">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">교사 모드</p>
+                <h2>수업방</h2>
+              </div>
+              <button id="createRoomBtn" class="primary-button" type="button">새 수업방 만들기</button>
+            </div>
+
+            <div id="teacherNoRoom" class="empty-state">
+              <span aria-hidden="true">🏫</span>
+              <strong>아직 열린 방이 없습니다.</strong>
+              <p>새 수업방을 만들면 방 코드와 동일한 시장 데이터가 생성됩니다.</p>
+            </div>
+
+            <div id="teacherRoomInfo" class="hidden">
+              <div class="room-code-card">
+                <span>방 코드</span>
+                <strong id="teacherRoomCode">-</strong>
+                <button id="copyRoomCodeBtn" class="secondary-button compact" type="button">코드 복사</button>
+              </div>
+              <div class="info-grid">
+                <div><span>시장 시드</span><strong id="teacherSeed">-</strong></div>
+                <div><span>총 라운드</span><strong id="teacherRounds">20</strong></div>
+                <div><span>현재 참여</span><strong id="teacherPlayerCount">0명</strong></div>
+                <div><span>완료</span><strong id="teacherFinishedCount">0명</strong></div>
+              </div>
+              <label class="copy-field">
+                참여 링크
+                <span>
+                  <input id="teacherJoinLink" readonly />
+                  <button id="copyJoinLinkBtn" class="secondary-button compact" type="button">복사</button>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <div id="dashboardPanel" class="panel hidden">
+            <div class="section-heading wrap">
+              <div>
+                <p class="eyebrow">실시간 / 준실시간 결과</p>
+                <h2>학생 진행 현황</h2>
+              </div>
+              <div class="button-row">
+                <button id="refreshDashboardBtn" class="secondary-button compact" type="button">새로고침</button>
+                <button id="compareSelectedBtn" class="secondary-button compact" type="button" disabled>2명 비교</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">비교</th><th scope="col">이름</th><th scope="col">현재 라운드</th><th scope="col">총자산</th>
+                    <th scope="col">수익률</th><th scope="col">추가</th><th scope="col">회수</th><th scope="col">유지</th><th scope="col">완료</th><th scope="col">상세</th>
+                  </tr>
+                </thead>
+                <tbody id="dashboardBody"></tbody>
+              </table>
+            </div>
+            <p id="dashboardEmpty" class="empty-inline">아직 참여한 학생이 없습니다.</p>
+          </div>
+
+          <div id="teacherDetailPanel" class="panel hidden">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">판단 과정</p>
+                <h2 id="teacherDetailTitle">학생 상세 기록</h2>
+              </div>
+              <button id="closeTeacherDetailBtn" class="ghost-button compact" type="button">닫기</button>
+            </div>
+            <div id="teacherDetailContent"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="gameScreen" class="screen" data-screen="game">
+        <div class="game-header panel">
+          <div>
+            <p class="eyebrow" id="gameContextLabel">혼자 연습</p>
+            <h2><span id="gameNickname">학생</span>의 시장 실험</h2>
+          </div>
+          <div class="game-progress">
+            <span>라운드</span>
+            <strong><span id="currentRoundText">1</span>/<span id="totalRoundsText">20</span></strong>
+          </div>
+        </div>
+
+        <div class="game-grid">
+          <div class="panel market-panel">
+            <div class="section-heading wrap">
+              <div>
+                <p class="eyebrow">시장 지수</p>
+                <h2 id="marketIndexText">100.00</h2>
+              </div>
+              <div id="lastChangeBadge" class="change-badge neutral">아직 변동 없음</div>
+            </div>
+            <div id="marketChart" class="market-chart" role="img" aria-label="시장 지수 변화 선 그래프"></div>
+            <div class="chart-legend" aria-label="행동 기호 안내">
+              <span><b>▲</b> 투자 추가</span><span><b>▼</b> 투자 회수</span><span><b>●</b> 유지</span>
+            </div>
+          </div>
+
+          <div class="panel asset-panel">
+            <p class="eyebrow">현재 자산</p>
+            <div class="asset-total">
+              <span>총자산</span>
+              <strong id="totalAssetsText">1,000,000원</strong>
+              <em id="returnRateText">0.00%</em>
+            </div>
+            <div class="asset-split">
+              <div><span>현금</span><strong id="cashText">1,000,000원</strong></div>
+              <div><span>투자 평가금액</span><strong id="investedText">0원</strong></div>
+            </div>
+            <button id="toggleMathBtn" class="secondary-button full" type="button">수학으로 보기</button>
+            <div id="mathPanel" class="math-panel hidden"></div>
+          </div>
+
+          <div class="panel decision-panel">
+            <div class="decision-context">
+              <p class="eyebrow">이번 판단에 사용할 수 있는 정보</p>
+              <p id="decisionPrompt">아직 시장 변화가 없습니다. 첫 투자를 어떻게 할까요?</p>
+            </div>
+
+            <div class="action-buttons" role="group" aria-label="투자 행동 선택">
+              <button id="buyBtn" class="action-button buy" type="button" data-action="buy">
+                <span aria-hidden="true">▲</span><strong>100,000원 투자 추가</strong><small>현금 → 투자금</small>
+              </button>
+              <button id="sellBtn" class="action-button sell" type="button" data-action="sell">
+                <span aria-hidden="true">▼</span><strong>100,000원 투자 회수</strong><small>투자금 → 현금</small>
+              </button>
+              <button id="holdBtn" class="action-button hold" type="button" data-action="hold">
+                <span aria-hidden="true">●</span><strong>유지</strong><small>구성 그대로</small>
+              </button>
+            </div>
+
+            <label class="reason-field">
+              왜 이렇게 선택했나요?
+              <textarea id="reasonInput" maxlength="200" rows="3" placeholder="예: 최근 계속 떨어졌기 때문에 다시 오를 것 같았다."></textarea>
+              <span><b id="reasonCount">0</b>/200자</span>
+            </label>
+            <button id="executeDecisionBtn" class="primary-button full" type="button" disabled>선택하고 다음 시장 보기</button>
+          </div>
+
+          <div id="roundResultPanel" class="panel round-result-panel hidden">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">라운드 결과</p>
+                <h2 id="roundResultTitle">시장 변화</h2>
+              </div>
+              <span id="roundResultChange" class="change-badge">0%</span>
+            </div>
+            <div id="roundCalculation" class="calculation-box"></div>
+            <p id="roundReflection" class="reflection-copy"></p>
+            <button id="nextRoundBtn" class="primary-button full" type="button">다음 라운드</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="resultScreen" class="screen" data-screen="result">
+        <div class="result-grid">
+          <div class="panel result-hero">
+            <p class="eyebrow">20라운드 완료</p>
+            <h2>같은 변화도 <span>언제 얼마를 투자했는지</span>에 따라 결과가 달라집니다.</h2>
+            <div class="result-summary-grid" id="resultSummaryGrid"></div>
+          </div>
+
+          <div class="panel">
+            <div class="section-heading"><div><p class="eyebrow">행동 통계</p><h2>나의 선택</h2></div></div>
+            <div id="behaviorStats" class="stat-strip"></div>
+          </div>
+
+          <div class="panel">
+            <div class="section-heading"><div><p class="eyebrow">시장 통계</p><h2>이번 시장은 어땠을까?</h2></div></div>
+            <div id="marketStats" class="stat-grid"></div>
+          </div>
+
+          <div class="panel">
+            <div class="section-heading"><div><p class="eyebrow">동일 시장 전략 비교</p><h2>이번 시장에서 결과는 어떻게 달랐을까?</h2></div></div>
+            <p class="muted">아래 비교는 ‘최고의 투자법’을 찾는 활동이 아닙니다. 동일한 marketChanges에서 현금 흐름과 투자 시점이 결과에 어떤 영향을 주는지 비교합니다.</p>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>전략</th><th>설명</th><th>최종자산</th><th>수익률</th></tr></thead>
+                <tbody id="strategyTableBody"></tbody>
+              </table>
+            </div>
+            <p id="strategyQuestion" class="inquiry-question"></p>
+          </div>
+
+          <div class="panel">
+            <div class="section-heading"><div><p class="eyebrow">판단 기록</p><h2>나는 무엇을 보고 선택했나?</h2></div></div>
+            <div class="table-wrap wide-table">
+              <table>
+                <thead><tr><th>라운드</th><th>선택 당시 시장</th><th>이전 변동</th><th>행동</th><th>판단 이유</th><th>다음 변동</th><th>행동 이후 총자산</th></tr></thead>
+                <tbody id="decisionHistoryBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div id="classComparisonPanel" class="panel hidden">
+            <div class="section-heading"><div><p class="eyebrow">같은 반 결과</p><h2>같은 시장, 다른 전략</h2></div><button id="refreshClassResultsBtn" class="secondary-button compact" type="button">새로고침</button></div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>이름</th><th>최종자산</th><th>수익률</th><th>추가</th><th>회수</th><th>유지</th></tr></thead>
+                <tbody id="classResultsBody"></tbody>
+              </table>
+            </div>
+            <div class="question-list">
+              <p>같은 시장인데 왜 결과가 달랐을까요?</p>
+              <p>가장 적극적으로 투자한 학생과 가장 많이 기다린 학생의 판단은 어떻게 달랐나요?</p>
+              <p>결과가 좋았던 판단이 항상 좋은 판단이라고 할 수 있을까요?</p>
+              <p>비슷한 판단을 했지만 결과가 달라진 경우가 있나요?</p>
+            </div>
+          </div>
+
+          <div class="panel lab-panel">
+            <div class="section-heading"><div><p class="eyebrow">교육용 추가 실험</p><h2>지수법칙 실험실</h2></div></div>
+            <div class="lab-grid">
+              <article>
+                <span class="lab-number">실험 1</span>
+                <h3>+10% 후 -10%</h3>
+                <p>결과를 먼저 예상한 뒤 확인하세요.</p>
+                <label class="lab-prediction">예상 최종 금액
+                  <input id="lab1Prediction" type="number" inputmode="numeric" min="0" step="1000" placeholder="예: 1,000,000" />
+                </label>
+                <button class="secondary-button lab-reveal" data-lab="1" type="button">계산 보기</button>
+                <div id="lab1Feedback" class="lab-feedback hidden"></div>
+                <div class="lab-answer hidden" data-lab-answer="1">1,000,000 × 1.1 × 0.9 = <strong>990,000원</strong><br><small>변화율의 합은 0%지만 곱은 0.99입니다.</small></div>
+              </article>
+              <article>
+                <span class="lab-number">실험 2</span>
+                <h3>-50% 뒤 원금 회복</h3>
+                <p>50만 원이 다시 100만 원이 되려면?</p>
+                <button class="secondary-button lab-reveal" data-lab="2" type="button">계산 보기</button>
+                <div class="lab-answer hidden" data-lab-answer="2">500,000 × 2 = <strong>1,000,000원</strong><br><small>-50% 뒤에는 +50%가 아니라 +100%가 필요합니다.</small></div>
+              </article>
+              <article>
+                <span class="lab-number">실험 3</span>
+                <h3>+5%가 3번 반복</h3>
+                <p>같은 비율을 반복해서 곱하면?</p>
+                <button class="secondary-button lab-reveal" data-lab="3" type="button">계산 보기</button>
+                <div class="lab-answer hidden" data-lab-answer="3">1,000,000 × 1.05 × 1.05 × 1.05 = 1,000,000 × <strong>1.05³</strong> ≈ 1,157,625원</div>
+              </article>
+            </div>
+          </div>
+
+          <div class="panel result-actions">
+            <button id="playAgainBtn" class="primary-button" type="button">같은 시장 다시 해보기</button>
+            <button id="newPracticeBtn" class="secondary-button" type="button">새 시장으로 혼자 연습</button>
+            <button id="resultHomeBtn" class="ghost-button" type="button">처음 화면</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>이 프로그램은 실제 투자 방법을 추천하거나 미래 주가를 예측하지 않습니다. 비율과 지수적 변화를 이해하기 위한 수학 시뮬레이션입니다.</p>
+    </footer>
+
+    <dialog id="infoDialog">
+      <form method="dialog" class="dialog-card">
+        <div class="section-heading">
+          <div><p class="eyebrow">안내</p><h2>수학 시뮬레이션입니다</h2></div>
+          <button class="ghost-button compact" value="close">닫기</button>
+        </div>
+        <p>실제 기업이나 종목을 사용하지 않으며, 미래 가격을 맞히는 활동이 아닙니다.</p>
+        <p>핵심은 <strong>변화율이 반복될 때 자산이 곱셈으로 변한다는 것</strong>, 그리고 같은 시장에서도 현금과 투자금의 비율 및 투자 시점에 따라 결과가 달라진다는 것을 관찰하는 데 있습니다.</p>
+      </form>
+    </dialog>
+
+    <dialog id="compareDialog">
+      <div class="dialog-card wide-dialog">
+        <div class="section-heading">
+          <div><p class="eyebrow">학생 비교</p><h2>같은 정보, 다른 판단</h2></div>
+          <button id="closeCompareDialogBtn" class="ghost-button compact" type="button">닫기</button>
+        </div>
+        <div id="compareDialogContent"></div>
+      </div>
+    </dialog>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

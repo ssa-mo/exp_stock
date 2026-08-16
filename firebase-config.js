@@ -1,0 +1,64 @@
+/**
+ * Firebase 설정 파일
+ *
+ * 1) Firebase Console > 프로젝트 설정 > 내 앱 > 웹 앱의 firebaseConfig 값을 아래에 붙여 넣으세요.
+ * 2) Authentication > Sign-in method에서 Anonymous(익명)를 활성화하세요.
+ * 3) Firestore Database를 만든 뒤 README의 Security Rules를 적용하세요.
+ *
+ * 설정하지 않으면 앱은 자동으로 로컬 연습 모드로 동작합니다.
+ */
+
+export const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT_ID.firebasestorage.app",
+  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+
+export function hasFirebaseConfig() {
+  const required = [
+    firebaseConfig.apiKey,
+    firebaseConfig.authDomain,
+    firebaseConfig.projectId,
+    firebaseConfig.appId
+  ];
+  return required.every((value) =>
+    typeof value === "string" &&
+    value.trim().length > 0 &&
+    !value.includes("YOUR_")
+  );
+}
+
+export async function initializeFirebaseServices() {
+  if (!hasFirebaseConfig()) {
+    return { enabled: false, reason: "Firebase 설정값이 비어 있습니다." };
+  }
+
+  // 빌드 도구가 없는 GitHub Pages용: Firebase 공식 CDN의 modular SDK를 동적 import합니다.
+  const SDK_VERSION = "12.17.1";
+  const appModule = await import(`https://www.gstatic.com/firebasejs/${SDK_VERSION}/firebase-app.js`);
+  const authModule = await import(`https://www.gstatic.com/firebasejs/${SDK_VERSION}/firebase-auth.js`);
+  const firestoreModule = await import(`https://www.gstatic.com/firebasejs/${SDK_VERSION}/firebase-firestore.js`);
+
+  const firebaseApp = appModule.initializeApp(firebaseConfig);
+  const auth = authModule.getAuth(firebaseApp);
+  await authModule.setPersistence(auth, authModule.browserLocalPersistence);
+
+  if (!auth.currentUser) {
+    await authModule.signInAnonymously(auth);
+  }
+
+  const db = firestoreModule.getFirestore(firebaseApp);
+
+  return {
+    enabled: true,
+    firebaseApp,
+    auth,
+    db,
+    authApi: authModule,
+    firestoreApi: firestoreModule,
+    sdkVersion: SDK_VERSION
+  };
+}

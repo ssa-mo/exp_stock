@@ -1,0 +1,158 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function roomPath(roomCode) {
+      return /databases/$(database)/documents/rooms/$(roomCode);
+    }
+
+    function roomExists(roomCode) {
+      return exists(roomPath(roomCode));
+    }
+
+    function roomData(roomCode) {
+      return get(roomPath(roomCode)).data;
+    }
+
+    function validRoomCreate() {
+      return request.resource.data.keys().hasOnly([
+          'roomCode', 'seed', 'rounds', 'marketChanges', 'teacherUid', 'createdAt'
+        ])
+        && request.resource.data.roomCode is string
+        && request.resource.data.roomCode.size() >= 8
+        && request.resource.data.roomCode.size() <= 12
+        && request.resource.data.seed is string
+        && request.resource.data.seed.size() >= 6
+        && request.resource.data.seed.size() <= 40
+        && request.resource.data.rounds is int
+        && request.resource.data.rounds >= 1
+        && request.resource.data.rounds <= 50
+        && request.resource.data.marketChanges is list
+        && request.resource.data.marketChanges.size() == request.resource.data.rounds
+        && request.resource.data.teacherUid == request.auth.uid;
+    }
+
+    function validPlayer(roomCode) {
+      return request.resource.data.keys().hasOnly([
+          'ownerUid', 'nickname', 'nicknameNormalized', 'currentRound',
+          'cash', 'investedValue', 'totalAssets', 'returnRate',
+          'buyCount', 'sellCount', 'holdCount', 'decisionCount',
+          'finished', 'updatedAt', 'startedAt'
+        ])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.nickname is string
+        && request.resource.data.nickname.size() >= 2
+        && request.resource.data.nickname.size() <= 20
+        && request.resource.data.nicknameNormalized is string
+        && request.resource.data.nicknameNormalized.size() >= 2
+        && request.resource.data.nicknameNormalized.size() <= 20
+        && request.resource.data.currentRound is int
+        && request.resource.data.currentRound >= 1
+        && request.resource.data.currentRound <= roomData(roomCode).rounds
+        && request.resource.data.cash is number
+        && request.resource.data.cash >= 0
+        && request.resource.data.cash <= 1000000000
+        && request.resource.data.investedValue is number
+        && request.resource.data.investedValue >= 0
+        && request.resource.data.investedValue <= 1000000000
+        && request.resource.data.totalAssets is number
+        && request.resource.data.totalAssets >= 0
+        && request.resource.data.totalAssets <= 1000000000
+        && request.resource.data.returnRate is number
+        && request.resource.data.returnRate >= -100
+        && request.resource.data.returnRate <= 100000
+        && request.resource.data.buyCount is int
+        && request.resource.data.buyCount >= 0
+        && request.resource.data.buyCount <= roomData(roomCode).rounds
+        && request.resource.data.sellCount is int
+        && request.resource.data.sellCount >= 0
+        && request.resource.data.sellCount <= roomData(roomCode).rounds
+        && request.resource.data.holdCount is int
+        && request.resource.data.holdCount >= 0
+        && request.resource.data.holdCount <= roomData(roomCode).rounds
+        && request.resource.data.decisionCount is int
+        && request.resource.data.decisionCount >= 0
+        && request.resource.data.decisionCount <= roomData(roomCode).rounds
+        && request.resource.data.finished is bool;
+    }
+
+    function validDecision(roomCode) {
+      return request.resource.data.keys().hasOnly([
+          'ownerUid', 'round', 'marketIndex', 'previousChange', 'action', 'reason',
+          'nextChange', 'cashAfter', 'investedBeforeChange', 'investedAfter',
+          'totalAssetsAfter', 'returnRateAfter', 'updatedAt'
+        ])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.round is int
+        && request.resource.data.round >= 1
+        && request.resource.data.round <= roomData(roomCode).rounds
+        && request.resource.data.marketIndex is number
+        && request.resource.data.previousChange is number
+        && request.resource.data.nextChange is number
+        && request.resource.data.action is string
+        && request.resource.data.action in ['buy', 'sell', 'hold']
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() <= 200
+        && request.resource.data.cashAfter is number
+        && request.resource.data.cashAfter >= 0
+        && request.resource.data.investedBeforeChange is number
+        && request.resource.data.investedBeforeChange >= 0
+        && request.resource.data.investedAfter is number
+        && request.resource.data.investedAfter >= 0
+        && request.resource.data.totalAssetsAfter is number
+        && request.resource.data.totalAssetsAfter >= 0
+        && request.resource.data.returnRateAfter is number;
+    }
+
+    match /rooms/{roomCode} {
+      // 익명 로그인 사용자는 시장 데이터를 읽을 수 있습니다.
+      allow read: if signedIn();
+
+      // 방은 만든 사람의 UID를 teacherUid로 고정해 생성합니다.
+      allow create: if signedIn()
+                    && request.resource.data.teacherUid == request.auth.uid
+                    && validRoomCreate();
+
+      // 이 간단한 수업용 버전에서는 생성 후 방 문서 수정/삭제를 막습니다.
+      allow update, delete: if false;
+
+      match /players/{playerId} {
+        // 같은 방의 전략 비교를 위해 로그인한 참여자는 학생 요약 결과를 읽을 수 있습니다.
+        allow read: if signedIn();
+
+        // 학생은 자신의 Auth UID와 같은 문서만 생성/수정할 수 있습니다.
+        allow create: if signedIn()
+                      && roomExists(roomCode)
+                      && playerId == request.auth.uid
+                      && validPlayer(roomCode);
+
+        allow update: if signedIn()
+                      && roomExists(roomCode)
+                      && playerId == request.auth.uid
+                      && resource.data.ownerUid == request.auth.uid
+                      && request.resource.data.ownerUid == resource.data.ownerUid
+                      && validPlayer(roomCode);
+
+        allow delete: if false;
+
+        match /decisions/{decisionId} {
+          allow read: if signedIn();
+
+          allow create, update: if signedIn()
+                                && roomExists(roomCode)
+                                && playerId == request.auth.uid
+                                && validDecision(roomCode);
+
+          allow delete: if false;
+        }
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
