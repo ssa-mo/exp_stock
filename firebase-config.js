@@ -9,12 +9,12 @@
  */
 
 export const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.firebasestorage.app",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyBGz3gxlBPAg-v0BSIhgtqX7buFOWxs528",
+  authDomain: "exp-stock-dc5c4.firebaseapp.com",
+  projectId: "exp-stock-dc5c4",
+  storageBucket: "exp-stock-dc5c4.firebasestorage.app",
+  messagingSenderId: "962409021191",
+  appId: "1:962409021191:web:ffaaab309178dd8f8f8fa2"
 };
 
 export function hasFirebaseConfig() {
