@@ -19,11 +19,14 @@ service cloud.firestore {
 
     function validRoomCreate() {
       return request.resource.data.keys().hasOnly([
-          'roomCode', 'seed', 'rounds', 'marketChanges', 'teacherUid', 'createdAt'
+          'roomCode', 'roomName', 'seed', 'rounds', 'marketChanges', 'teacherUid', 'createdAt'
         ])
         && request.resource.data.roomCode is string
         && request.resource.data.roomCode.size() >= 8
         && request.resource.data.roomCode.size() <= 12
+        && request.resource.data.roomName is string
+        && request.resource.data.roomName.size() >= 1
+        && request.resource.data.roomName.size() <= 30
         && request.resource.data.seed is string
         && request.resource.data.seed.size() >= 6
         && request.resource.data.seed.size() <= 40

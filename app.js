@@ -1,4 +1,4 @@
-import { initializeFirebaseServices, appConfig } from "./firebase-config.js";
+import { initializeFirebaseServices } from "./firebase-config.js";
 
 const SETTINGS = Object.freeze({
   STARTING_CASH: 1_000_000,
@@ -8,7 +8,9 @@ const SETTINGS = Object.freeze({
   REASON_MAX_LENGTH: 200,
   STRATEGY_A_INITIAL: 500_000,
   ROOM_PREFIX: "MATH",
-  LOCAL_ROOM_PREFIX: "LOCAL"
+  LOCAL_ROOM_PREFIX: "LOCAL",
+  ROOM_NAME_MAX_LENGTH: 30,
+  TEACHER_ACCESS_KEY: "235math" // 나중에 교사 접근키를 바꾸려면 이 값만 수정하세요.
 });
 
 const STORAGE_KEYS = Object.freeze({
@@ -46,7 +48,7 @@ function cacheElements() {
   [
     "homeBtn", "connectionBadge", "disclaimerBtn", "modeBanner", "toast", "homeScreen", "studentJoinScreen", "teacherScreen", "gameScreen", "resultScreen",
     "studentModeBtn", "teacherModeBtn", "practiceModeBtn", "resumeCard", "resumeTitle", "resumeText", "resumeBtn", "discardResumeBtn",
-    "studentJoinForm", "nicknameInput", "roomCodeInput", "createRoomBtn", "teacherRoomLibrary", "teacherRoomCount", "teacherRoomList", "teacherNoRoom", "teacherRoomInfo", "teacherRoomCode", "teacherSeed", "teacherRounds",
+    "studentJoinForm", "nicknameInput", "roomCodeInput", "createRoomBtn", "teacherRoomLibrary", "teacherRoomCount", "teacherRoomList", "teacherNoRoom", "teacherRoomInfo", "teacherRoomName", "teacherRoomCode", "teacherSeed", "teacherRounds",
     "teacherPlayerCount", "teacherFinishedCount", "teacherJoinLink", "copyRoomCodeBtn", "copyJoinLinkBtn", "dashboardPanel", "refreshDashboardBtn", "compareSelectedBtn",
     "dashboardBody", "dashboardEmpty", "teacherDetailPanel", "teacherDetailTitle", "teacherDetailContent", "closeTeacherDetailBtn", "gameContextLabel", "gameNickname",
     "currentRoundText", "totalRoundsText", "marketIndexText", "lastChangeBadge", "marketChart", "totalAssetsText", "returnRateText", "cashText", "investedText",
@@ -54,6 +56,7 @@ function cacheElements() {
     "roundResultTitle", "roundResultChange", "roundCalculation", "roundReflection", "nextRoundBtn", "resultSummaryGrid", "behaviorStats", "marketStats", "strategyTableBody",
     "strategyQuestion", "decisionHistoryBody", "classComparisonPanel", "refreshClassResultsBtn", "classResultsBody", "playAgainBtn", "newPracticeBtn", "resultHomeBtn",
     "teacherAccessDialog", "teacherAccessForm", "teacherAccessKeyInput", "teacherAccessError", "cancelTeacherAccessBtn",
+    "createRoomDialog", "createRoomForm", "roomNameInput", "roomNameCount", "cancelCreateRoomBtn",
     "infoDialog", "compareDialog", "closeCompareDialogBtn", "compareDialogContent", "lab1Prediction", "lab1Feedback"
   ].forEach((id) => { els[id] = $(id); });
 }
@@ -92,6 +95,15 @@ function normalizeRoomCode(code) {
 function validNickname(nickname) {
   const trimmed = String(nickname || "").trim();
   return trimmed.length >= 2 && trimmed.length <= 20;
+}
+
+function normalizeRoomName(roomName) {
+  return String(roomName || "").trim().replace(/\s+/g, " ");
+}
+
+function validRoomName(roomName) {
+  const trimmed = normalizeRoomName(roomName);
+  return trimmed.length >= 1 && trimmed.length <= SETTINGS.ROOM_NAME_MAX_LENGTH;
 }
 
 function uidFallback() {
@@ -210,12 +222,13 @@ function createMarketSeed() {
   return `SEED-${value}`;
 }
 
-function makePracticeGame({ seed = createMarketSeed(), nickname = "혼자 연습", roomCode = null, marketChanges = null, playerId = null } = {}) {
+function makePracticeGame({ seed = createMarketSeed(), nickname = "혼자 연습", roomCode = null, roomName = null, marketChanges = null, playerId = null } = {}) {
   const changes = Array.isArray(marketChanges) && marketChanges.length ? marketChanges : generateMarketChanges(seed, SETTINGS.TOTAL_ROUNDS);
   return {
     version: 1,
     mode: roomCode ? "room" : "practice",
     roomCode,
+    roomName,
     seed,
     nickname,
     playerId: playerId || uidFallback(),
@@ -280,7 +293,9 @@ function renderResumeCard() {
   }
   const game = saved.game;
   els.resumeTitle.textContent = `${game.nickname}의 ${game.currentRound}라운드 진행을 이어갈 수 있습니다.`;
-  els.resumeText.textContent = game.roomCode ? `방 ${game.roomCode} · 시장 시드 ${game.seed}` : `혼자 연습 · 시장 시드 ${game.seed}`;
+  els.resumeText.textContent = game.roomCode
+    ? `${game.roomName ? `${game.roomName} · ` : ""}방 ${game.roomCode} · 시장 시드 ${game.seed}`
+    : `혼자 연습 · 시장 시드 ${game.seed}`;
   els.resumeCard.classList.remove("hidden");
 }
 
@@ -330,12 +345,18 @@ async function ensureUniqueRoomCode() {
   throw new Error("고유한 방 코드를 만들지 못했습니다. 다시 시도하세요.");
 }
 
-async function createTeacherRoom() {
+async function createTeacherRoom(roomName) {
+  const cleanRoomName = normalizeRoomName(roomName);
+  if (!validRoomName(cleanRoomName)) {
+    throw new Error(`방 이름은 1~${SETTINGS.ROOM_NAME_MAX_LENGTH}자로 입력하세요.`);
+  }
+
   const roomCode = await ensureUniqueRoomCode();
   const seed = createMarketSeed();
   const marketChanges = generateMarketChanges(seed, SETTINGS.TOTAL_ROUNDS);
   const room = {
     roomCode,
+    roomName: cleanRoomName,
     seed,
     rounds: SETTINGS.TOTAL_ROUNDS,
     marketChanges,
@@ -348,6 +369,7 @@ async function createTeacherRoom() {
     const { doc, setDoc, serverTimestamp } = state.firebase.firestoreApi;
     await setDoc(doc(state.firebase.db, "rooms", roomCode), {
       roomCode,
+      roomName: cleanRoomName,
       seed,
       rounds: SETTINGS.TOTAL_ROUNDS,
       marketChanges,
@@ -366,7 +388,7 @@ async function createTeacherRoom() {
   renderTeacherRoomList();
   renderTeacherRoom();
   await startTeacherDashboard();
-  showToast(`수업방 ${roomCode}를 만들었습니다.`);
+  showToast(`${cleanRoomName} (${roomCode}) 수업방을 만들었습니다.`);
 }
 
 async function loadRoom(roomCode) {
@@ -415,6 +437,7 @@ async function joinStudentRoom(nickname, roomCode) {
     seed: room.seed,
     nickname: cleanNickname,
     roomCode: room.roomCode,
+    roomName: room.roomName || null,
     marketChanges: room.marketChanges,
     playerId
   });
@@ -449,7 +472,9 @@ function renderGame() {
   els.decisionControls.classList.toggle("hidden", Boolean(state.pendingResult));
   els.roundResultPanel.classList.toggle("hidden", !state.pendingResult);
 
-  els.gameContextLabel.textContent = game.roomCode ? `수업방 ${game.roomCode} · 시장 ${game.seed}` : `혼자 연습 · 시장 ${game.seed}`;
+  els.gameContextLabel.textContent = game.roomCode
+    ? `${game.roomName ? `${game.roomName} · ` : ""}수업방 ${game.roomCode} · 시장 ${game.seed}`
+    : `혼자 연습 · 시장 ${game.seed}`;
   els.gameNickname.textContent = game.nickname;
   els.currentRoundText.textContent = game.currentRound;
   els.totalRoundsText.textContent = game.totalRounds;
@@ -894,9 +919,9 @@ function renderTeacherRoomList() {
   els.teacherRoomLibrary.classList.toggle("hidden", rooms.length === 0);
   els.teacherRoomList.innerHTML = rooms.map((room) => `
     <button class="teacher-room-item ${state.teacherRoom?.roomCode === room.roomCode ? "active" : ""}" type="button" data-teacher-room="${escapeHtml(room.roomCode)}">
-      <strong>${escapeHtml(room.roomCode)}</strong>
-      <small>시장 ${escapeHtml(room.seed || "-")}</small>
-      <small>${room.rounds || SETTINGS.TOTAL_ROUNDS}라운드</small>
+      <strong>${escapeHtml(room.roomName || "이름 없는 수업방")}</strong>
+      <small class="room-list-code">${escapeHtml(room.roomCode)}</small>
+      <small>시장 ${escapeHtml(room.seed || "-")} · ${room.rounds || SETTINGS.TOTAL_ROUNDS}라운드</small>
     </button>`).join("");
 
   document.querySelectorAll("[data-teacher-room]").forEach((button) => {
@@ -920,6 +945,7 @@ function renderTeacherRoom() {
   els.teacherNoRoom.classList.add("hidden");
   els.teacherRoomInfo.classList.remove("hidden");
   els.dashboardPanel.classList.remove("hidden");
+  els.teacherRoomName.textContent = state.teacherRoom.roomName || "이름 없는 수업방";
   els.teacherRoomCode.textContent = state.teacherRoom.roomCode;
   els.teacherSeed.textContent = state.teacherRoom.seed;
   els.teacherRounds.textContent = state.teacherRoom.rounds;
@@ -977,7 +1003,7 @@ function requestTeacherAccess() {
 
 function verifyTeacherAccess(event) {
   event.preventDefault();
-  if (els.teacherAccessKeyInput.value === appConfig.teacherAccessKey) {
+  if (els.teacherAccessKeyInput.value === SETTINGS.TEACHER_ACCESS_KEY) {
     els.teacherAccessError.classList.add("hidden");
     els.teacherAccessDialog.close();
     openTeacherMode().catch((error) => {
@@ -1151,8 +1177,27 @@ function bindEvents() {
   els.teacherAccessForm.addEventListener("submit", verifyTeacherAccess);
   els.cancelTeacherAccessBtn.addEventListener("click", () => els.teacherAccessDialog.close());
   els.practiceModeBtn.addEventListener("click", () => startPractice());
-  els.createRoomBtn.addEventListener("click", async () => {
-    try { await createTeacherRoom(); } catch (error) { console.error(error); showToast(error.message || "방 생성에 실패했습니다."); }
+  els.createRoomBtn.addEventListener("click", () => {
+    els.roomNameInput.value = "";
+    els.roomNameCount.textContent = "0";
+    els.createRoomDialog.showModal();
+    requestAnimationFrame(() => els.roomNameInput.focus());
+  });
+  els.cancelCreateRoomBtn.addEventListener("click", () => els.createRoomDialog.close());
+  els.roomNameInput.addEventListener("input", () => {
+    els.roomNameCount.textContent = String(els.roomNameInput.value.length);
+  });
+  els.createRoomForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    try {
+      await createTeacherRoom(els.roomNameInput.value);
+      els.createRoomDialog.close();
+      els.createRoomForm.reset();
+      els.roomNameCount.textContent = "0";
+    } catch (error) {
+      console.error(error);
+      showToast(error.message || "방 생성에 실패했습니다.");
+    }
   });
 
   els.studentJoinForm.addEventListener("submit", async (event) => {

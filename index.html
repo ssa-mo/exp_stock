@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0f172a" />
   <meta name="description" content="중학생이 비율 변화, 반복 곱셈, 누적 수익률과 지수적 변화를 체험하는 수학 시뮬레이션" />
   <title>지수 주식 실험실</title>
-  <link rel="stylesheet" href="./style.css" />
+  <link rel="stylesheet" href="./style.css?v=20260816-3" />
 </head>
 <body>
   <div id="app" class="app-shell">
@@ -132,6 +132,10 @@
             </div>
 
             <div id="teacherRoomInfo" class="hidden">
+              <div class="selected-room-heading">
+                <span>선택한 수업방</span>
+                <strong id="teacherRoomName">-</strong>
+              </div>
               <div class="room-code-card">
                 <span>방 코드</span>
                 <strong id="teacherRoomCode">-</strong>
@@ -373,6 +377,27 @@
       <p>이 프로그램은 실제 투자 방법을 추천하거나 미래 주가를 예측하지 않습니다. 비율과 지수적 변화를 이해하기 위한 수학 시뮬레이션입니다.</p>
     </footer>
 
+
+    <dialog id="createRoomDialog">
+      <div class="dialog-card teacher-access-card">
+        <div class="section-heading">
+          <div><p class="eyebrow">새 수업방</p><h2>수업방 이름 정하기</h2></div>
+        </div>
+        <p class="muted">반·차시를 구분하기 쉬운 이름을 적어 주세요. 방 코드는 자동으로 생성됩니다.</p>
+        <form id="createRoomForm" class="stack-form">
+          <label>
+            방 이름
+            <input id="roomNameInput" maxlength="30" autocomplete="off" placeholder="예: 2학년 3반 · 1차시" required />
+            <span class="input-counter"><b id="roomNameCount">0</b>/30자</span>
+          </label>
+          <div class="button-row">
+            <button class="primary-button" type="submit">수업방 만들기</button>
+            <button id="cancelCreateRoomBtn" class="ghost-button" type="button">취소</button>
+          </div>
+        </form>
+      </div>
+    </dialog>
+
     <dialog id="teacherAccessDialog">
       <div class="dialog-card teacher-access-card">
         <div class="section-heading">
@@ -415,6 +440,6 @@
     </dialog>
   </div>
 
-  <script type="module" src="./app.js"></script>
+  <script type="module" src="./app.js?v=20260816-3"></script>
 </body>
 </html>

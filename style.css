@@ -108,8 +108,13 @@ textarea { resize: vertical; min-height: 88px; }
 .teacher-room-item { display: grid; gap: 5px; text-align: left; border: 1px solid #cfd9e8; border-radius: 11px; padding: 11px 12px; background: white; color: var(--ink); }
 .teacher-room-item:hover, .teacher-room-item:focus-visible { border-color: #94ace9; background: var(--primary-soft); }
 .teacher-room-item.active { border-color: var(--primary); background: var(--primary-soft); box-shadow: inset 0 0 0 1px var(--primary); }
-.teacher-room-item strong { letter-spacing: .04em; }
+.teacher-room-item strong { letter-spacing: 0; font-size: 14px; }
 .teacher-room-item small { color: var(--muted); }
+.teacher-room-item .room-list-code { font-weight: 800; letter-spacing: .05em; color: var(--primary-dark); }
+.selected-room-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 4px 0 10px; padding: 0 2px; }
+.selected-room-heading span { color: var(--muted); font-size: 12px; font-weight: 800; }
+.selected-room-heading strong { font-size: 18px; }
+.input-counter { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; text-align: right; }
 .room-code-card { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 18px; background: #0f172a; color: white; border-radius: 14px; }
 .room-code-card span { color: #cbd5e1; }
 .room-code-card strong { font-size: clamp(26px, 5vw, 44px); letter-spacing: .06em; margin-right: auto; }
