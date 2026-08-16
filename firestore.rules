@@ -84,7 +84,7 @@ service cloud.firestore {
 
     function validDecision(roomCode) {
       return request.resource.data.keys().hasOnly([
-          'ownerUid', 'round', 'marketIndex', 'previousChange', 'action', 'reason',
+          'ownerUid', 'round', 'marketIndex', 'previousChange', 'action', 'amount', 'reason',
           'nextChange', 'cashAfter', 'investedBeforeChange', 'investedAfter',
           'totalAssetsAfter', 'returnRateAfter', 'updatedAt'
         ])
@@ -97,6 +97,11 @@ service cloud.firestore {
         && request.resource.data.nextChange is number
         && request.resource.data.action is string
         && request.resource.data.action in ['buy', 'sell', 'hold']
+        && request.resource.data.amount is int
+        && request.resource.data.amount >= 0
+        && request.resource.data.amount <= 1000000000
+        && (request.resource.data.action != 'hold' || request.resource.data.amount == 0)
+        && (request.resource.data.action == 'hold' || request.resource.data.amount >= 1)
         && request.resource.data.reason is string
         && request.resource.data.reason.size() <= 200
         && request.resource.data.cashAfter is number
@@ -119,8 +124,16 @@ service cloud.firestore {
                     && request.resource.data.teacherUid == request.auth.uid
                     && validRoomCreate();
 
-      // 이 간단한 수업용 버전에서는 생성 후 방 문서 수정/삭제를 막습니다.
-      allow update, delete: if false;
+      // 방을 만든 교사는 roomName만 수정할 수 있습니다. 시장 시드·시장 데이터·방 코드는 바꿀 수 없습니다.
+      allow update: if signedIn()
+                    && resource.data.teacherUid == request.auth.uid
+                    && request.resource.data.teacherUid == resource.data.teacherUid
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['roomName'])
+                    && request.resource.data.roomName is string
+                    && request.resource.data.roomName.size() >= 1
+                    && request.resource.data.roomName.size() <= 30;
+
+      allow delete: if false;
 
       match /players/{playerId} {
         // 같은 방의 전략 비교를 위해 로그인한 참여자는 학생 요약 결과를 읽을 수 있습니다.

@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0f172a" />
   <meta name="description" content="중학생이 비율 변화, 반복 곱셈, 누적 수익률과 지수적 변화를 체험하는 수학 시뮬레이션" />
   <title>지수 주식 실험실</title>
-  <link rel="stylesheet" href="./style.css?v=20260816-3" />
+  <link rel="stylesheet" href="./style.css?v=20260816-4" />
 </head>
 <body>
   <div id="app" class="app-shell">
@@ -34,7 +34,7 @@
             <p class="eyebrow">중학교 수학 탐구 활동</p>
             <h1>같은 시장, 다른 판단.<br />결과는 왜 달라질까?</h1>
             <p class="hero-description">
-              20번의 시장 변화 속에서 10만 원씩 투자하거나 회수하며, 변화율이 단순히 더해지는 것이 아니라
+              20번의 시장 변화 속에서 원하는 금액을 1원 단위로 투자하거나 회수하며, 변화율이 단순히 더해지는 것이 아니라
               <strong>곱셈으로 누적</strong>되는 과정을 확인합니다.
             </p>
             <div class="concept-chips" aria-label="학습 개념">
@@ -133,8 +133,11 @@
 
             <div id="teacherRoomInfo" class="hidden">
               <div class="selected-room-heading">
-                <span>선택한 수업방</span>
-                <strong id="teacherRoomName">-</strong>
+                <div>
+                  <span>선택한 수업방</span>
+                  <strong id="teacherRoomName">-</strong>
+                </div>
+                <button id="editRoomNameBtn" class="secondary-button compact" type="button">방 이름 수정</button>
               </div>
               <div class="room-code-card">
                 <span>방 코드</span>
@@ -173,7 +176,7 @@
                 <thead>
                   <tr>
                     <th scope="col">비교</th><th scope="col">이름</th><th scope="col">현재 라운드</th><th scope="col">총자산</th>
-                    <th scope="col">수익률</th><th scope="col">추가</th><th scope="col">회수</th><th scope="col">유지</th><th scope="col">완료</th><th scope="col">상세</th>
+                    <th scope="col">수익률</th><th scope="col">투자</th><th scope="col">회수</th><th scope="col">유지</th><th scope="col">완료</th><th scope="col">상세</th>
                   </tr>
                 </thead>
                 <tbody id="dashboardBody"></tbody>
@@ -218,7 +221,7 @@
             </div>
             <div id="marketChart" class="market-chart" role="img" aria-label="시장 지수 변화 선 그래프"></div>
             <div class="chart-legend" aria-label="행동 기호 안내">
-              <span><b>▲</b> 투자 추가</span><span><b>▼</b> 투자 회수</span><span><b>●</b> 유지</span>
+              <span><b>▲</b> 투자</span><span><b>▼</b> 회수</span><span><b>●</b> 유지</span>
             </div>
           </div>
 
@@ -243,14 +246,33 @@
 
               <div class="action-buttons" role="group" aria-label="투자 행동 선택">
                 <button id="buyBtn" class="action-button buy" type="button" data-action="buy">
-                  <span aria-hidden="true">▲</span><strong>100,000원 투자 추가</strong><small>현금 → 투자금</small>
+                  <span aria-hidden="true">▲</span><strong>투자</strong><small>현금 → 투자금</small>
                 </button>
                 <button id="sellBtn" class="action-button sell" type="button" data-action="sell">
-                  <span aria-hidden="true">▼</span><strong>100,000원 투자 회수</strong><small>투자금 → 현금</small>
+                  <span aria-hidden="true">▼</span><strong>회수</strong><small>투자금 → 현금</small>
                 </button>
                 <button id="holdBtn" class="action-button hold" type="button" data-action="hold">
                   <span aria-hidden="true">●</span><strong>유지</strong><small>구성 그대로</small>
                 </button>
+              </div>
+
+              <div id="amountControls" class="amount-controls hidden">
+                <div class="amount-heading">
+                  <div>
+                    <strong id="amountTitle">금액 설정</strong>
+                    <small id="amountLimitText">가능 금액을 확인하세요.</small>
+                  </div>
+                  <strong id="selectedAmountText">0원</strong>
+                </div>
+                <label class="amount-input-field">
+                  금액 직접 입력
+                  <span class="amount-input-wrap">
+                    <input id="amountInput" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" value="0" />
+                    <b>원</b>
+                  </span>
+                </label>
+                <div id="amountQuickButtons" class="amount-quick-buttons" aria-label="금액 빠른 조정"></div>
+                <p class="helper-text compact-help">버튼은 현재 투자·회수 가능한 최대 금액에 맞춰 자동으로 바뀝니다. 모든 금액은 1원 단위이며 소수점 이하는 버립니다.</p>
               </div>
 
               <label class="reason-field">
@@ -321,7 +343,7 @@
             <div class="section-heading"><div><p class="eyebrow">같은 반 결과</p><h2>같은 시장, 다른 전략</h2></div><button id="refreshClassResultsBtn" class="secondary-button compact" type="button">새로고침</button></div>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>이름</th><th>최종자산</th><th>수익률</th><th>추가</th><th>회수</th><th>유지</th></tr></thead>
+                <thead><tr><th>이름</th><th>최종자산</th><th>수익률</th><th>투자</th><th>회수</th><th>유지</th></tr></thead>
                 <tbody id="classResultsBody"></tbody>
               </table>
             </div>
@@ -398,6 +420,26 @@
       </div>
     </dialog>
 
+    <dialog id="editRoomNameDialog">
+      <div class="dialog-card teacher-access-card">
+        <div class="section-heading">
+          <div><p class="eyebrow">수업방 설정</p><h2>방 이름 수정</h2></div>
+        </div>
+        <p class="muted">방 코드와 시장 데이터는 그대로 유지되고 이름만 바뀝니다.</p>
+        <form id="editRoomNameForm" class="stack-form">
+          <label>
+            방 이름
+            <input id="editRoomNameInput" maxlength="30" autocomplete="off" required />
+            <span class="input-counter"><b id="editRoomNameCount">0</b>/30자</span>
+          </label>
+          <div class="button-row">
+            <button class="primary-button" type="submit">이름 저장</button>
+            <button id="cancelEditRoomNameBtn" class="ghost-button" type="button">취소</button>
+          </div>
+        </form>
+      </div>
+    </dialog>
+
     <dialog id="teacherAccessDialog">
       <div class="dialog-card teacher-access-card">
         <div class="section-heading">
@@ -440,6 +482,6 @@
     </dialog>
   </div>
 
-  <script type="module" src="./app.js?v=20260816-3"></script>
+  <script type="module" src="./app.js?v=20260816-4"></script>
 </body>
 </html>

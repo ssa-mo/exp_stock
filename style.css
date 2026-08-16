@@ -111,7 +111,8 @@ textarea { resize: vertical; min-height: 88px; }
 .teacher-room-item strong { letter-spacing: 0; font-size: 14px; }
 .teacher-room-item small { color: var(--muted); }
 .teacher-room-item .room-list-code { font-weight: 800; letter-spacing: .05em; color: var(--primary-dark); }
-.selected-room-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 4px 0 10px; padding: 0 2px; }
+.selected-room-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 4px 0 10px; padding: 0 2px; }
+.selected-room-heading > div { display: grid; gap: 3px; }
 .selected-room-heading span { color: var(--muted); font-size: 12px; font-weight: 800; }
 .selected-room-heading strong { font-size: 18px; }
 .input-counter { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; text-align: right; }
@@ -182,6 +183,21 @@ tbody tr:last-child td { border-bottom: 0; }
 .action-button.buy > span { color: var(--positive); }
 .action-button.sell > span { color: var(--negative); }
 .action-button.hold > span { color: #637186; }
+.amount-controls { margin-top: 14px; padding: 14px; border: 1px solid #cfd9e8; border-radius: 13px; background: #f8faff; }
+.amount-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.amount-heading > div { display: grid; gap: 3px; }
+.amount-heading small { color: var(--muted); font-size: 11px; }
+.amount-heading > strong { color: var(--primary-dark); font-size: 20px; white-space: nowrap; }
+.amount-input-field { display: grid; gap: 6px; font-size: 12px; font-weight: 800; }
+.amount-input-wrap { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; }
+.amount-input-wrap input { width: 100%; text-align: right; font-variant-numeric: tabular-nums; }
+.amount-input-wrap b { color: var(--muted); }
+.amount-quick-buttons { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+.amount-chip { border: 1px solid #bdcae0; border-radius: 999px; padding: 8px 11px; background: white; color: var(--primary-dark); font-size: 12px; font-weight: 900; }
+.amount-chip:hover, .amount-chip:focus-visible { background: var(--primary-soft); border-color: var(--primary); }
+.amount-chip.all { background: #eef3ff; }
+.amount-chip:disabled { opacity: .45; cursor: not-allowed; }
+.compact-help { margin: 9px 0 0; font-size: 11px; }
 .reason-field { margin: 14px 0; }
 .reason-field > span { text-align: right; color: var(--muted); font-size: 11px; font-weight: 500; }
 .round-result-panel { margin: 0; }

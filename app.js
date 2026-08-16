@@ -2,7 +2,7 @@ import { initializeFirebaseServices } from "./firebase-config.js";
 
 const SETTINGS = Object.freeze({
   STARTING_CASH: 1_000_000,
-  INVESTMENT_STEP: 100_000,
+  STRATEGY_B_STEP: 100_000, // 자동 비교 전략 B에서만 사용하는 고정 금액
   TOTAL_ROUNDS: 20,
   START_INDEX: 100,
   REASON_MAX_LENGTH: 200,
@@ -20,8 +20,8 @@ const STORAGE_KEYS = Object.freeze({
 });
 
 const ACTIONS = Object.freeze({
-  buy: { label: "투자 추가", symbol: "▲" },
-  sell: { label: "투자 회수", symbol: "▼" },
+  buy: { label: "투자", symbol: "▲" },
+  sell: { label: "회수", symbol: "▼" },
   hold: { label: "유지", symbol: "●" }
 });
 
@@ -36,6 +36,7 @@ const state = {
   currentPlayerId: null,
   selectedComparisonIds: new Set(),
   selectedAction: null,
+  selectedAmount: 0,
   game: null,
   pendingResult: null,
   toastTimer: null
@@ -52,11 +53,11 @@ function cacheElements() {
     "teacherPlayerCount", "teacherFinishedCount", "teacherJoinLink", "copyRoomCodeBtn", "copyJoinLinkBtn", "dashboardPanel", "refreshDashboardBtn", "compareSelectedBtn",
     "dashboardBody", "dashboardEmpty", "teacherDetailPanel", "teacherDetailTitle", "teacherDetailContent", "closeTeacherDetailBtn", "gameContextLabel", "gameNickname",
     "currentRoundText", "totalRoundsText", "marketIndexText", "lastChangeBadge", "marketChart", "totalAssetsText", "returnRateText", "cashText", "investedText",
-    "toggleMathBtn", "mathPanel", "decisionControls", "decisionPrompt", "buyBtn", "sellBtn", "holdBtn", "reasonInput", "reasonCount", "executeDecisionBtn", "roundResultPanel",
+    "toggleMathBtn", "mathPanel", "decisionControls", "decisionPrompt", "buyBtn", "sellBtn", "holdBtn", "amountControls", "amountTitle", "amountLimitText", "selectedAmountText", "amountInput", "amountQuickButtons", "reasonInput", "reasonCount", "executeDecisionBtn", "roundResultPanel",
     "roundResultTitle", "roundResultChange", "roundCalculation", "roundReflection", "nextRoundBtn", "resultSummaryGrid", "behaviorStats", "marketStats", "strategyTableBody",
     "strategyQuestion", "decisionHistoryBody", "classComparisonPanel", "refreshClassResultsBtn", "classResultsBody", "playAgainBtn", "newPracticeBtn", "resultHomeBtn",
     "teacherAccessDialog", "teacherAccessForm", "teacherAccessKeyInput", "teacherAccessError", "cancelTeacherAccessBtn",
-    "createRoomDialog", "createRoomForm", "roomNameInput", "roomNameCount", "cancelCreateRoomBtn",
+    "createRoomDialog", "createRoomForm", "roomNameInput", "roomNameCount", "cancelCreateRoomBtn", "editRoomNameBtn", "editRoomNameDialog", "editRoomNameForm", "editRoomNameInput", "editRoomNameCount", "cancelEditRoomNameBtn",
     "infoDialog", "compareDialog", "closeCompareDialogBtn", "compareDialogContent", "lab1Prediction", "lab1Feedback"
   ].forEach((id) => { els[id] = $(id); });
 }
@@ -71,7 +72,7 @@ function escapeHtml(value = "") {
 }
 
 function formatWon(value) {
-  return `${Math.round(Number(value) || 0).toLocaleString("ko-KR")}원`;
+  return `${Math.trunc(Number(value) || 0).toLocaleString("ko-KR")}원`;
 }
 
 function formatPercent(value, digits = 2) {
@@ -81,7 +82,7 @@ function formatPercent(value, digits = 2) {
 }
 
 function roundMoney(value) {
-  return Math.round((Number(value) || 0) * 100) / 100;
+  return Math.trunc(Number(value) || 0);
 }
 
 function clamp(value, min, max) {
@@ -104,6 +105,70 @@ function normalizeRoomName(roomName) {
 function validRoomName(roomName) {
   const trimmed = normalizeRoomName(roomName);
   return trimmed.length >= 1 && trimmed.length <= SETTINGS.ROOM_NAME_MAX_LENGTH;
+}
+
+function normalizeAmount(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 0;
+  return Math.max(0, Math.trunc(number));
+}
+
+function getActionMaxAmount(action, game = state.game) {
+  if (!game) return 0;
+  if (action === "buy") return normalizeAmount(game.cash);
+  if (action === "sell") return normalizeAmount(game.investedValue);
+  return 0;
+}
+
+function getAmountIncrements(maxAmount) {
+  const max = normalizeAmount(maxAmount);
+  if (max <= 0) return [];
+  const digits = Math.floor(Math.log10(max));
+  const exponent = Math.max(0, digits - 3);
+  const base = 10 ** exponent;
+  return [base, base * 10, base * 100, base * 1000]
+    .filter((value, index, array) => value <= max && array.indexOf(value) === index);
+}
+
+function setSelectedAmount(value) {
+  const max = getActionMaxAmount(state.selectedAction);
+  state.selectedAmount = clamp(normalizeAmount(value), 0, max);
+  renderAmountControls();
+  updateDecisionButtonState();
+}
+
+function updateDecisionButtonState() {
+  const action = state.selectedAction;
+  const needsAmount = action === "buy" || action === "sell";
+  const validAmount = !needsAmount || (state.selectedAmount >= 1 && state.selectedAmount <= getActionMaxAmount(action));
+  els.executeDecisionBtn.disabled = !action || !validAmount || Boolean(state.pendingResult);
+}
+
+function renderAmountControls() {
+  const action = state.selectedAction;
+  const show = action === "buy" || action === "sell";
+  els.amountControls.classList.toggle("hidden", !show || Boolean(state.pendingResult));
+  if (!show) return;
+
+  const max = getActionMaxAmount(action);
+  if (state.selectedAmount > max) state.selectedAmount = max;
+  els.amountTitle.textContent = action === "buy" ? "투자 금액 설정" : "회수 금액 설정";
+  els.amountLimitText.textContent = `${action === "buy" ? "투자" : "회수"} 가능 최대 ${formatWon(max)}`;
+  els.selectedAmountText.textContent = formatWon(state.selectedAmount);
+  els.amountInput.max = String(max);
+  els.amountInput.value = String(state.selectedAmount);
+
+  const increments = getAmountIncrements(max);
+  els.amountQuickButtons.innerHTML = [
+    ...increments.map((value) => `<button class="amount-chip" type="button" data-amount-add="${value}">+${formatWon(value)}</button>`),
+    `<button class="amount-chip all" type="button" data-amount-all="true" ${max < 1 ? "disabled" : ""}>전액 ${formatWon(max)}</button>`
+  ].join("");
+
+  els.amountQuickButtons.querySelectorAll("[data-amount-add]").forEach((button) => {
+    button.addEventListener("click", () => setSelectedAmount(state.selectedAmount + Number(button.dataset.amountAdd)));
+  });
+  const allButton = els.amountQuickButtons.querySelector("[data-amount-all]");
+  if (allButton) allButton.addEventListener("click", () => setSelectedAmount(max));
 }
 
 function uidFallback() {
@@ -391,6 +456,30 @@ async function createTeacherRoom(roomName) {
   showToast(`${cleanRoomName} (${roomCode}) 수업방을 만들었습니다.`);
 }
 
+async function updateTeacherRoomName(roomName) {
+  if (!state.teacherRoom) throw new Error("수정할 수업방을 먼저 선택하세요.");
+  const cleanRoomName = normalizeRoomName(roomName);
+  if (!validRoomName(cleanRoomName)) {
+    throw new Error(`방 이름은 1~${SETTINGS.ROOM_NAME_MAX_LENGTH}자로 입력하세요.`);
+  }
+
+  const roomCode = state.teacherRoom.roomCode;
+  if (state.onlineMode) {
+    const { doc, updateDoc } = state.firebase.firestoreApi;
+    await updateDoc(doc(state.firebase.db, "rooms", roomCode), { roomName: cleanRoomName });
+  } else {
+    const rooms = getLocalRooms();
+    if (!rooms[roomCode]) throw new Error("이 기기에서 수업방을 찾지 못했습니다.");
+    rooms[roomCode].roomName = cleanRoomName;
+    saveLocalRooms(rooms);
+  }
+
+  state.teacherRoom.roomName = cleanRoomName;
+  state.teacherRooms = state.teacherRooms.map((room) => room.roomCode === roomCode ? { ...room, roomName: cleanRoomName } : room);
+  renderTeacherRoom();
+  showToast(`방 이름을 '${cleanRoomName}'(으)로 바꿨습니다.`);
+}
+
 async function loadRoom(roomCode) {
   const code = normalizeRoomCode(roomCode);
   if (!code) throw new Error("방 코드를 입력하세요.");
@@ -459,6 +548,7 @@ function startPractice({ seed = null, sameMarket = false } = {}) {
 function startGameScreen() {
   state.pendingResult = null;
   state.selectedAction = null;
+  state.selectedAmount = 0;
   els.roundResultPanel.classList.add("hidden");
   els.decisionControls.classList.remove("hidden");
   setScreen("game");
@@ -497,16 +587,17 @@ function renderGame() {
     els.decisionPrompt.textContent = `직전 시장은 ${formatPercent(previousChange)} 변했습니다. 다음 변화는 아직 알 수 없습니다. 이번에는 어떻게 할까요?`;
   }
 
-  els.buyBtn.disabled = game.cash < SETTINGS.INVESTMENT_STEP || Boolean(state.pendingResult);
-  els.sellBtn.disabled = game.investedValue < SETTINGS.INVESTMENT_STEP || Boolean(state.pendingResult);
+  els.buyBtn.disabled = normalizeAmount(game.cash) < 1 || Boolean(state.pendingResult);
+  els.sellBtn.disabled = normalizeAmount(game.investedValue) < 1 || Boolean(state.pendingResult);
   els.holdBtn.disabled = Boolean(state.pendingResult);
-  els.executeDecisionBtn.disabled = !state.selectedAction || Boolean(state.pendingResult);
   els.reasonInput.disabled = Boolean(state.pendingResult);
 
   document.querySelectorAll(".action-button").forEach((btn) => {
     btn.classList.toggle("selected", btn.dataset.action === state.selectedAction);
   });
 
+  renderAmountControls();
+  updateDecisionButtonState();
   renderChart();
   renderMathPanel();
 }
@@ -594,35 +685,44 @@ function renderMathPanel() {
     <code>100${factors.length ? ` × ${product}` : ""} = ${marketIndex.toFixed(2)}</code>${repeatedLine}<br><br>
     <strong>현재 총자산</strong><br>
     <code>현금 ${formatWon(game.cash)} + 투자 평가금액 ${formatWon(game.investedValue)} = ${formatWon(game.totalAssets)}</code><br>
-    <small>투자 추가·회수가 있으면 투자금 자체가 중간에 바뀌므로, 내 총자산은 시장지수의 곱만으로 정해지지 않습니다.</small>`;
+    <small>투자·회수가 있으면 투자금 자체가 중간에 바뀌므로, 내 총자산은 시장지수의 곱만으로 정해지지 않습니다.</small>`;
 }
 
 function selectAction(action) {
   if (!ACTIONS[action] || state.pendingResult) return;
   const game = state.game;
-  if (action === "buy" && game.cash < SETTINGS.INVESTMENT_STEP) return;
-  if (action === "sell" && game.investedValue < SETTINGS.INVESTMENT_STEP) return;
+  if (action === "buy" && normalizeAmount(game.cash) < 1) return;
+  if (action === "sell" && normalizeAmount(game.investedValue) < 1) return;
   state.selectedAction = action;
+  state.selectedAmount = 0;
   renderGame();
 }
 
-function calculateActionBeforeMarket(game, action) {
-  let cash = game.cash;
-  let invested = game.investedValue;
+function calculateActionBeforeMarket(game, action, amount) {
+  let cash = roundMoney(game.cash);
+  let invested = roundMoney(game.investedValue);
+  const chosenAmount = action === "hold" ? 0 : normalizeAmount(amount);
   if (action === "buy") {
-    cash -= SETTINGS.INVESTMENT_STEP;
-    invested += SETTINGS.INVESTMENT_STEP;
+    cash -= chosenAmount;
+    invested += chosenAmount;
   } else if (action === "sell") {
-    cash += SETTINGS.INVESTMENT_STEP;
-    invested -= SETTINGS.INVESTMENT_STEP;
+    cash += chosenAmount;
+    invested -= chosenAmount;
   }
-  return { cash: roundMoney(cash), invested: roundMoney(invested) };
+  return { cash: roundMoney(cash), invested: roundMoney(invested), amount: chosenAmount };
 }
 
 async function executeDecision() {
   const game = state.game;
   const action = state.selectedAction;
   if (!game || !action || state.pendingResult) return;
+
+  const amount = action === "hold" ? 0 : normalizeAmount(state.selectedAmount);
+  const maxAmount = getActionMaxAmount(action, game);
+  if ((action === "buy" || action === "sell") && (amount < 1 || amount > maxAmount)) {
+    showToast(`${action === "buy" ? "투자" : "회수"} 금액을 1원 이상 ${formatWon(maxAmount)} 이하로 정해 주세요.`);
+    return;
+  }
 
   const round = game.currentRound;
   const reason = els.reasonInput.value.trim() || "이유를 적지 않음";
@@ -634,7 +734,7 @@ async function executeDecision() {
   const previousChange = round > 1 ? game.marketChanges[round - 2] : 0;
   const marketIndexBefore = game.marketIndices[round - 1];
   const nextChange = game.marketChanges[round - 1];
-  const before = calculateActionBeforeMarket(game, action);
+  const before = calculateActionBeforeMarket(game, action, amount);
   const investedAfterMarket = roundMoney(before.invested * (1 + nextChange / 100));
   const totalAfter = roundMoney(before.cash + investedAfterMarket);
   const returnRate = ((totalAfter / SETTINGS.STARTING_CASH) - 1) * 100;
@@ -644,6 +744,7 @@ async function executeDecision() {
     marketIndex: Math.round(marketIndexBefore * 10000) / 10000,
     previousChange,
     action,
+    amount: before.amount,
     reason: reason.slice(0, SETTINGS.REASON_MAX_LENGTH),
     nextChange,
     cashAfter: before.cash,
@@ -665,6 +766,7 @@ async function executeDecision() {
 
   state.pendingResult = decision;
   state.selectedAction = null;
+  state.selectedAmount = 0;
   await persistDecision(decision);
   await persistPlayerSummary(false);
   saveSession();
@@ -678,8 +780,12 @@ function showRoundResult(decision) {
   els.roundResultTitle.textContent = `${decision.round}라운드 시장 변화`;
   setChangeBadge(els.roundResultChange, decision.nextChange);
   const factor = 1 + decision.nextChange / 100;
+  const actionLine = decision.action === "hold"
+    ? "행동: 유지"
+    : `행동: ${ACTIONS[decision.action].label} ${formatWon(decision.amount || 0)}`;
   els.roundCalculation.innerHTML = `
-    투자금 ${formatWon(decision.investedBeforeChange)}<br>
+    ${actionLine}<br>
+    시장 변화 직전 투자금 ${formatWon(decision.investedBeforeChange)}<br>
     × ${factor.toFixed(4)} (${formatPercent(decision.nextChange)})<br>
     = ${formatWon(decision.investedAfter)}<br>
     현금 ${formatWon(decision.cashAfter)} + 투자금 ${formatWon(decision.investedAfter)}<br>
@@ -703,6 +809,7 @@ async function advanceRound() {
   if (!game || !state.pendingResult) return;
   const completedRound = state.pendingResult.round;
   state.pendingResult = null;
+  state.selectedAmount = 0;
   els.roundResultPanel.classList.add("hidden");
   els.decisionControls.classList.remove("hidden");
 
@@ -759,6 +866,7 @@ async function persistDecision(decision) {
     marketIndex: decision.marketIndex,
     previousChange: decision.previousChange,
     action: decision.action,
+    amount: decision.amount,
     reason: decision.reason,
     nextChange: decision.nextChange,
     cashAfter: decision.cashAfter,
@@ -778,14 +886,14 @@ function computeStrategyResults(game) {
     let invested = 0;
     changes.forEach((change, index) => {
       const action = actionProvider({ index, cash, invested });
-      if (action === "buy" && cash >= SETTINGS.INVESTMENT_STEP) {
-        cash -= SETTINGS.INVESTMENT_STEP;
-        invested += SETTINGS.INVESTMENT_STEP;
-      } else if (action === "sell" && invested >= SETTINGS.INVESTMENT_STEP) {
-        cash += SETTINGS.INVESTMENT_STEP;
-        invested -= SETTINGS.INVESTMENT_STEP;
+      if (action === "buy" && cash >= SETTINGS.STRATEGY_B_STEP) {
+        cash -= SETTINGS.STRATEGY_B_STEP;
+        invested += SETTINGS.STRATEGY_B_STEP;
+      } else if (action === "sell" && invested >= SETTINGS.STRATEGY_B_STEP) {
+        cash += SETTINGS.STRATEGY_B_STEP;
+        invested -= SETTINGS.STRATEGY_B_STEP;
       }
-      invested *= 1 + change / 100;
+      invested = roundMoney(invested * (1 + change / 100));
     });
     const total = cash + invested;
     return { total, returnRate: (total / SETTINGS.STARTING_CASH - 1) * 100 };
@@ -793,11 +901,11 @@ function computeStrategyResults(game) {
 
   let aCash = SETTINGS.STARTING_CASH - SETTINGS.STRATEGY_A_INITIAL;
   let aInvested = SETTINGS.STRATEGY_A_INITIAL;
-  changes.forEach((change) => { aInvested *= 1 + change / 100; });
+  changes.forEach((change) => { aInvested = roundMoney(aInvested * (1 + change / 100)); });
   const aTotal = aCash + aInvested;
 
   const strategyA = { name: "전략 A", description: "처음 50만 원 투자 후 끝까지 유지", total: aTotal, returnRate: (aTotal / SETTINGS.STARTING_CASH - 1) * 100 };
-  const strategyBBase = simulate(({ cash }) => cash >= SETTINGS.INVESTMENT_STEP ? "buy" : "hold");
+  const strategyBBase = simulate(({ cash }) => cash >= SETTINGS.STRATEGY_B_STEP ? "buy" : "hold");
   const strategyB = { name: "전략 B", description: "매 라운드 10만 원씩 투자", ...strategyBBase };
   const strategyC = { name: "전략 C", description: "현금 100만 원으로만 유지", total: SETTINGS.STARTING_CASH, returnRate: 0 };
   const strategyD = { name: "전략 D", description: "학생의 실제 선택", total: game.totalAssets, returnRate: game.returnRate };
@@ -820,8 +928,8 @@ function renderResults() {
   els.resultSummaryGrid.innerHTML = summary.map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join("");
 
   els.behaviorStats.innerHTML = `
-    <div><strong>${game.buyCount}</strong><span>투자 추가</span></div>
-    <div><strong>${game.sellCount}</strong><span>투자 회수</span></div>
+    <div><strong>${game.buyCount}</strong><span>투자</span></div>
+    <div><strong>${game.sellCount}</strong><span>회수</span></div>
     <div><strong>${game.holdCount}</strong><span>유지</span></div>`;
 
   const up = game.marketChanges.filter((v) => v > 0).length;
@@ -847,7 +955,7 @@ function renderResults() {
       <td>${d.round}</td>
       <td>${d.marketIndex.toFixed(2)}</td>
       <td>${d.round === 1 ? "-" : formatPercent(d.previousChange)}</td>
-      <td>${ACTIONS[d.action].symbol} ${ACTIONS[d.action].label}</td>
+      <td>${ACTIONS[d.action].symbol} ${ACTIONS[d.action].label}${d.action !== "hold" ? ` ${formatWon(d.amount || 0)}` : ""}</td>
       <td>${escapeHtml(d.reason)}</td>
       <td class="${d.nextChange > 0 ? "positive-text" : d.nextChange < 0 ? "negative-text" : ""}">${formatPercent(d.nextChange)}</td>
       <td>${formatWon(d.totalAssetsAfter)}</td>
@@ -921,7 +1029,7 @@ function renderTeacherRoomList() {
     <button class="teacher-room-item ${state.teacherRoom?.roomCode === room.roomCode ? "active" : ""}" type="button" data-teacher-room="${escapeHtml(room.roomCode)}">
       <strong>${escapeHtml(room.roomName || "이름 없는 수업방")}</strong>
       <small class="room-list-code">${escapeHtml(room.roomCode)}</small>
-      <small>시장 ${escapeHtml(room.seed || "-")} · ${room.rounds || SETTINGS.TOTAL_ROUNDS}라운드</small>
+      <small>${room.rounds || SETTINGS.TOTAL_ROUNDS}라운드</small>
     </button>`).join("");
 
   document.querySelectorAll("[data-teacher-room]").forEach((button) => {
@@ -1113,7 +1221,7 @@ async function showPlayerDetail(playerId) {
     <div class="table-wrap wide-table">
       <table>
         <thead><tr><th>라운드</th><th>시장상황</th><th>행동</th><th>판단 이유</th><th>다음 변동</th><th>결과</th></tr></thead>
-        <tbody>${decisions.map((d) => `<tr><td>${d.round}</td><td>지수 ${Number(d.marketIndex).toFixed(2)}<br>${d.round === 1 ? "첫 라운드" : `직전 ${formatPercent(d.previousChange)}`}</td><td>${ACTIONS[d.action]?.symbol || ""} ${ACTIONS[d.action]?.label || d.action}</td><td>${escapeHtml(d.reason)}</td><td>${formatPercent(d.nextChange)}</td><td>${formatWon(d.totalAssetsAfter)}</td></tr>`).join("") || `<tr><td colspan="6">아직 판단 기록이 없습니다.</td></tr>`}</tbody>
+        <tbody>${decisions.map((d) => `<tr><td>${d.round}</td><td>지수 ${Number(d.marketIndex).toFixed(2)}<br>${d.round === 1 ? "첫 라운드" : `직전 ${formatPercent(d.previousChange)}`}</td><td>${ACTIONS[d.action]?.symbol || ""} ${ACTIONS[d.action]?.label || d.action}${d.action !== "hold" ? ` ${formatWon(d.amount || 0)}` : ""}</td><td>${escapeHtml(d.reason)}</td><td>${formatPercent(d.nextChange)}</td><td>${formatWon(d.totalAssetsAfter)}</td></tr>`).join("") || `<tr><td colspan="6">아직 판단 기록이 없습니다.</td></tr>`}</tbody>
       </table>
     </div>`;
   els.teacherDetailPanel.classList.remove("hidden");
@@ -1134,7 +1242,7 @@ async function compareSelectedPlayers() {
         ${Array.from({ length: maxRounds }, (_, i) => {
           const d = decisions.find((item) => item.round === i + 1);
           if (!d) return `<div class="compare-round"><strong>${i + 1}라운드</strong><p>아직 기록 없음</p></div>`;
-          return `<div class="compare-round"><strong>${i + 1}라운드 · ${ACTIONS[d.action]?.symbol} ${ACTIONS[d.action]?.label} → 다음 ${formatPercent(d.nextChange)}</strong><p>${escapeHtml(d.reason)}</p><p>이후 총자산 ${formatWon(d.totalAssetsAfter)}</p></div>`;
+          return `<div class="compare-round"><strong>${i + 1}라운드 · ${ACTIONS[d.action]?.symbol} ${ACTIONS[d.action]?.label}${d.action !== "hold" ? ` ${formatWon(d.amount || 0)}` : ""} → 다음 ${formatPercent(d.nextChange)}</strong><p>${escapeHtml(d.reason)}</p><p>이후 총자산 ${formatWon(d.totalAssetsAfter)}</p></div>`;
         }).join("")}
       </div>
     </section>`;
@@ -1165,6 +1273,7 @@ function resetSameMarket() {
 
   state.pendingResult = null;
   state.selectedAction = null;
+  state.selectedAmount = 0;
   saveSession();
   startGameScreen();
 }
@@ -1200,6 +1309,28 @@ function bindEvents() {
     }
   });
 
+  els.editRoomNameBtn.addEventListener("click", () => {
+    if (!state.teacherRoom) return;
+    els.editRoomNameInput.value = state.teacherRoom.roomName || "";
+    els.editRoomNameCount.textContent = String(els.editRoomNameInput.value.length);
+    els.editRoomNameDialog.showModal();
+    requestAnimationFrame(() => { els.editRoomNameInput.focus(); els.editRoomNameInput.select(); });
+  });
+  els.cancelEditRoomNameBtn.addEventListener("click", () => els.editRoomNameDialog.close());
+  els.editRoomNameInput.addEventListener("input", () => {
+    els.editRoomNameCount.textContent = String(els.editRoomNameInput.value.length);
+  });
+  els.editRoomNameForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    try {
+      await updateTeacherRoomName(els.editRoomNameInput.value);
+      els.editRoomNameDialog.close();
+    } catch (error) {
+      console.error(error);
+      showToast(error.message || "방 이름 수정에 실패했습니다.");
+    }
+  });
+
   els.studentJoinForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
@@ -1211,6 +1342,14 @@ function bindEvents() {
   });
 
   [els.buyBtn, els.sellBtn, els.holdBtn].forEach((button) => button.addEventListener("click", () => selectAction(button.dataset.action)));
+  els.amountInput.addEventListener("input", () => {
+    const max = getActionMaxAmount(state.selectedAction);
+    const normalized = clamp(normalizeAmount(els.amountInput.value), 0, max);
+    state.selectedAmount = normalized;
+    if (String(normalized) !== els.amountInput.value) els.amountInput.value = String(normalized);
+    els.selectedAmountText.textContent = formatWon(normalized);
+    updateDecisionButtonState();
+  });
   els.reasonInput.addEventListener("input", () => { els.reasonCount.textContent = els.reasonInput.value.length; });
   els.executeDecisionBtn.addEventListener("click", () => executeDecision().catch((error) => { console.error(error); showToast("결과 저장 중 오류가 발생했습니다. 로컬 진행은 유지됩니다."); }));
   els.nextRoundBtn.addEventListener("click", () => advanceRound().catch((error) => { console.error(error); showToast("다음 라운드로 이동하는 중 오류가 발생했습니다."); }));
@@ -1235,6 +1374,7 @@ function bindEvents() {
     state.currentPlayerId = state.game.playerId;
     state.pendingResult = null;
     state.selectedAction = null;
+    state.selectedAmount = 0;
     if (state.game.finished) { renderResults(); setScreen("result"); }
     else startGameScreen();
   });
