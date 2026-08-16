@@ -1,4 +1,4 @@
-import { initializeFirebaseServices } from "./firebase-config.js";
+import { initializeFirebaseServices, appConfig } from "./firebase-config.js";
 
 const SETTINGS = Object.freeze({
   STARTING_CASH: 1_000_000,
@@ -28,6 +28,7 @@ const state = {
   onlineMode: false,
   currentScreen: "home",
   teacherRoom: null,
+  teacherRooms: [],
   dashboardPlayers: [],
   dashboardUnsubscribe: null,
   currentPlayerId: null,
@@ -45,13 +46,14 @@ function cacheElements() {
   [
     "homeBtn", "connectionBadge", "disclaimerBtn", "modeBanner", "toast", "homeScreen", "studentJoinScreen", "teacherScreen", "gameScreen", "resultScreen",
     "studentModeBtn", "teacherModeBtn", "practiceModeBtn", "resumeCard", "resumeTitle", "resumeText", "resumeBtn", "discardResumeBtn",
-    "studentJoinForm", "nicknameInput", "roomCodeInput", "createRoomBtn", "teacherNoRoom", "teacherRoomInfo", "teacherRoomCode", "teacherSeed", "teacherRounds",
+    "studentJoinForm", "nicknameInput", "roomCodeInput", "createRoomBtn", "teacherRoomLibrary", "teacherRoomCount", "teacherRoomList", "teacherNoRoom", "teacherRoomInfo", "teacherRoomCode", "teacherSeed", "teacherRounds",
     "teacherPlayerCount", "teacherFinishedCount", "teacherJoinLink", "copyRoomCodeBtn", "copyJoinLinkBtn", "dashboardPanel", "refreshDashboardBtn", "compareSelectedBtn",
     "dashboardBody", "dashboardEmpty", "teacherDetailPanel", "teacherDetailTitle", "teacherDetailContent", "closeTeacherDetailBtn", "gameContextLabel", "gameNickname",
     "currentRoundText", "totalRoundsText", "marketIndexText", "lastChangeBadge", "marketChart", "totalAssetsText", "returnRateText", "cashText", "investedText",
-    "toggleMathBtn", "mathPanel", "decisionPrompt", "buyBtn", "sellBtn", "holdBtn", "reasonInput", "reasonCount", "executeDecisionBtn", "roundResultPanel",
+    "toggleMathBtn", "mathPanel", "decisionControls", "decisionPrompt", "buyBtn", "sellBtn", "holdBtn", "reasonInput", "reasonCount", "executeDecisionBtn", "roundResultPanel",
     "roundResultTitle", "roundResultChange", "roundCalculation", "roundReflection", "nextRoundBtn", "resultSummaryGrid", "behaviorStats", "marketStats", "strategyTableBody",
     "strategyQuestion", "decisionHistoryBody", "classComparisonPanel", "refreshClassResultsBtn", "classResultsBody", "playAgainBtn", "newPracticeBtn", "resultHomeBtn",
+    "teacherAccessDialog", "teacherAccessForm", "teacherAccessKeyInput", "teacherAccessError", "cancelTeacherAccessBtn",
     "infoDialog", "compareDialog", "closeCompareDialogBtn", "compareDialogContent", "lab1Prediction", "lab1Feedback"
   ].forEach((id) => { els[id] = $(id); });
 }
@@ -359,7 +361,9 @@ async function createTeacherRoom() {
   }
 
   state.teacherRoom = room;
+  state.teacherRooms = [room, ...state.teacherRooms.filter((item) => item.roomCode !== roomCode)];
   localStorage.setItem(STORAGE_KEYS.TEACHER_ROOM, roomCode);
+  renderTeacherRoomList();
   renderTeacherRoom();
   await startTeacherDashboard();
   showToast(`수업방 ${roomCode}를 만들었습니다.`);
@@ -433,6 +437,7 @@ function startGameScreen() {
   state.pendingResult = null;
   state.selectedAction = null;
   els.roundResultPanel.classList.add("hidden");
+  els.decisionControls.classList.remove("hidden");
   setScreen("game");
   renderGame();
 }
@@ -440,6 +445,9 @@ function startGameScreen() {
 function renderGame() {
   const game = state.game;
   if (!game) return;
+
+  els.decisionControls.classList.toggle("hidden", Boolean(state.pendingResult));
+  els.roundResultPanel.classList.toggle("hidden", !state.pendingResult);
 
   els.gameContextLabel.textContent = game.roomCode ? `수업방 ${game.roomCode} · 시장 ${game.seed}` : `혼자 연습 · 시장 ${game.seed}`;
   els.gameNickname.textContent = game.nickname;
@@ -640,6 +648,7 @@ async function executeDecision() {
 }
 
 function showRoundResult(decision) {
+  els.decisionControls.classList.add("hidden");
   els.roundResultPanel.classList.remove("hidden");
   els.roundResultTitle.textContent = `${decision.round}라운드 시장 변화`;
   setChangeBadge(els.roundResultChange, decision.nextChange);
@@ -670,6 +679,7 @@ async function advanceRound() {
   const completedRound = state.pendingResult.round;
   state.pendingResult = null;
   els.roundResultPanel.classList.add("hidden");
+  els.decisionControls.classList.remove("hidden");
 
   if (completedRound >= game.totalRounds) {
     game.finished = true;
@@ -846,7 +856,60 @@ async function loadClassResults() {
   }
 }
 
+function roomCreatedAtMs(room) {
+  if (room?.createdAt?.toMillis) return room.createdAt.toMillis();
+  const clientTime = Date.parse(room?.createdAtClient || "");
+  return Number.isFinite(clientTime) ? clientTime : 0;
+}
+
+async function loadTeacherRooms() {
+  if (state.onlineMode) {
+    const { collection, query, where, getDocs } = state.firebase.firestoreApi;
+    const uid = currentAuthUid();
+    if (!uid) {
+      state.teacherRooms = [];
+      return;
+    }
+    const roomsQuery = query(collection(state.firebase.db, "rooms"), where("teacherUid", "==", uid));
+    const snaps = await getDocs(roomsQuery);
+    state.teacherRooms = snaps.docs.map((roomSnap) => {
+      const data = roomSnap.data();
+      return {
+        ...data,
+        roomCode: roomSnap.id,
+        marketIndices: computeMarketIndices(data.marketChanges)
+      };
+    }).sort((a, b) => roomCreatedAtMs(b) - roomCreatedAtMs(a));
+    return;
+  }
+
+  state.teacherRooms = Object.values(getLocalRooms())
+    .filter((room) => room?.roomCode)
+    .sort((a, b) => roomCreatedAtMs(b) - roomCreatedAtMs(a));
+}
+
+function renderTeacherRoomList() {
+  const rooms = state.teacherRooms || [];
+  els.teacherRoomCount.textContent = String(rooms.length);
+  els.teacherRoomLibrary.classList.toggle("hidden", rooms.length === 0);
+  els.teacherRoomList.innerHTML = rooms.map((room) => `
+    <button class="teacher-room-item ${state.teacherRoom?.roomCode === room.roomCode ? "active" : ""}" type="button" data-teacher-room="${escapeHtml(room.roomCode)}">
+      <strong>${escapeHtml(room.roomCode)}</strong>
+      <small>시장 ${escapeHtml(room.seed || "-")}</small>
+      <small>${room.rounds || SETTINGS.TOTAL_ROUNDS}라운드</small>
+    </button>`).join("");
+
+  document.querySelectorAll("[data-teacher-room]").forEach((button) => {
+    button.addEventListener("click", () => selectTeacherRoom(button.dataset.teacherRoom).catch((error) => {
+      console.error(error);
+      showToast("수업방을 여는 중 오류가 발생했습니다.");
+    }));
+  });
+}
+
 function renderTeacherRoom() {
+  renderTeacherRoomList();
+
   if (!state.teacherRoom) {
     els.teacherNoRoom.classList.remove("hidden");
     els.teacherRoomInfo.classList.add("hidden");
@@ -868,15 +931,34 @@ function renderTeacherRoom() {
 }
 
 async function restoreTeacherRoom() {
-  const code = localStorage.getItem(STORAGE_KEYS.TEACHER_ROOM);
-  if (!code) return;
-  try {
-    const room = await loadRoom(code);
-    if (state.onlineMode && room.teacherUid !== currentAuthUid()) return;
-    state.teacherRoom = room;
-  } catch {
+  await loadTeacherRooms();
+  const savedCode = localStorage.getItem(STORAGE_KEYS.TEACHER_ROOM);
+  const savedRoom = state.teacherRooms.find((room) => room.roomCode === savedCode);
+  state.teacherRoom = savedRoom || state.teacherRooms[0] || null;
+
+  if (state.teacherRoom) {
+    localStorage.setItem(STORAGE_KEYS.TEACHER_ROOM, state.teacherRoom.roomCode);
+  } else {
     localStorage.removeItem(STORAGE_KEYS.TEACHER_ROOM);
   }
+}
+
+async function selectTeacherRoom(roomCode) {
+  const code = normalizeRoomCode(roomCode);
+  if (!code) return;
+  let room = state.teacherRooms.find((item) => item.roomCode === code);
+  if (!room) room = await loadRoom(code);
+
+  if (state.onlineMode && room.teacherUid !== currentAuthUid()) {
+    throw new Error("이 계정이 만든 수업방만 교사 대시보드에서 열 수 있습니다.");
+  }
+
+  stopDashboardListener();
+  state.teacherRoom = room;
+  localStorage.setItem(STORAGE_KEYS.TEACHER_ROOM, room.roomCode);
+  els.teacherDetailPanel.classList.add("hidden");
+  renderTeacherRoom();
+  await startTeacherDashboard();
 }
 
 async function openTeacherMode() {
@@ -884,6 +966,29 @@ async function openTeacherMode() {
   await restoreTeacherRoom();
   renderTeacherRoom();
   if (state.teacherRoom) await startTeacherDashboard();
+}
+
+function requestTeacherAccess() {
+  els.teacherAccessKeyInput.value = "";
+  els.teacherAccessError.classList.add("hidden");
+  els.teacherAccessDialog.showModal();
+  requestAnimationFrame(() => els.teacherAccessKeyInput.focus());
+}
+
+function verifyTeacherAccess(event) {
+  event.preventDefault();
+  if (els.teacherAccessKeyInput.value === appConfig.teacherAccessKey) {
+    els.teacherAccessError.classList.add("hidden");
+    els.teacherAccessDialog.close();
+    openTeacherMode().catch((error) => {
+      console.error(error);
+      showToast("교사 화면을 여는 중 오류가 발생했습니다.");
+    });
+    return;
+  }
+
+  els.teacherAccessError.classList.remove("hidden");
+  els.teacherAccessKeyInput.select();
 }
 
 async function startTeacherDashboard() {
@@ -1042,7 +1147,9 @@ function bindEvents() {
   els.homeBtn.addEventListener("click", goHome);
   els.disclaimerBtn.addEventListener("click", () => els.infoDialog.showModal());
   els.studentModeBtn.addEventListener("click", () => setScreen("student-join"));
-  els.teacherModeBtn.addEventListener("click", openTeacherMode);
+  els.teacherModeBtn.addEventListener("click", requestTeacherAccess);
+  els.teacherAccessForm.addEventListener("submit", verifyTeacherAccess);
+  els.cancelTeacherAccessBtn.addEventListener("click", () => els.teacherAccessDialog.close());
   els.practiceModeBtn.addEventListener("click", () => startPractice());
   els.createRoomBtn.addEventListener("click", async () => {
     try { await createTeacherRoom(); } catch (error) { console.error(error); showToast(error.message || "방 생성에 실패했습니다."); }

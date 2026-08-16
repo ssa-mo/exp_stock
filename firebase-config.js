@@ -17,6 +17,17 @@ export const firebaseConfig = {
   appId: "1:962409021191:web:ffaaab309178dd8f8f8fa2"
 };
 
+
+/**
+ * 교사 화면 진입용 간단한 수업용 암호키입니다.
+ * GitHub Pages의 프론트엔드 코드에 포함되므로 강력한 보안 비밀번호가 아니라
+ * 학생의 실수/임의 진입을 막는 교실용 접근 장치로 사용하세요.
+ * 나중에 바꾸려면 아래 teacherAccessKey 값만 수정하면 됩니다.
+ */
+export const appConfig = Object.freeze({
+  teacherAccessKey: "235math"
+});
+
 export function hasFirebaseConfig() {
   const required = [
     firebaseConfig.apiKey,

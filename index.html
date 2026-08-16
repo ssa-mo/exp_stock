@@ -115,6 +115,16 @@
               <button id="createRoomBtn" class="primary-button" type="button">새 수업방 만들기</button>
             </div>
 
+            <div id="teacherRoomLibrary" class="teacher-room-library hidden">
+              <div class="teacher-room-library-head">
+                <div>
+                  <strong>내 수업방 <span id="teacherRoomCount">0</span>개</strong>
+                  <small>여러 반이나 여러 차시의 방을 동시에 유지할 수 있습니다. 방을 선택하면 해당 방의 대시보드가 열립니다.</small>
+                </div>
+              </div>
+              <div id="teacherRoomList" class="teacher-room-list" aria-label="교사가 만든 수업방 목록"></div>
+            </div>
+
             <div id="teacherNoRoom" class="empty-state">
               <span aria-hidden="true">🏫</span>
               <strong>아직 열린 방이 없습니다.</strong>
@@ -224,42 +234,41 @@
           </div>
 
           <div class="panel decision-panel">
-            <div class="decision-context">
-              <p class="eyebrow">이번 판단에 사용할 수 있는 정보</p>
-              <p id="decisionPrompt">아직 시장 변화가 없습니다. 첫 투자를 어떻게 할까요?</p>
-            </div>
+            <div id="decisionControls">
+              <p id="decisionPrompt" class="decision-prompt">아직 시장 변화가 없습니다. 첫 투자를 어떻게 할까요?</p>
 
-            <div class="action-buttons" role="group" aria-label="투자 행동 선택">
-              <button id="buyBtn" class="action-button buy" type="button" data-action="buy">
-                <span aria-hidden="true">▲</span><strong>100,000원 투자 추가</strong><small>현금 → 투자금</small>
-              </button>
-              <button id="sellBtn" class="action-button sell" type="button" data-action="sell">
-                <span aria-hidden="true">▼</span><strong>100,000원 투자 회수</strong><small>투자금 → 현금</small>
-              </button>
-              <button id="holdBtn" class="action-button hold" type="button" data-action="hold">
-                <span aria-hidden="true">●</span><strong>유지</strong><small>구성 그대로</small>
-              </button>
-            </div>
-
-            <label class="reason-field">
-              왜 이렇게 선택했나요?
-              <textarea id="reasonInput" maxlength="200" rows="3" placeholder="예: 최근 계속 떨어졌기 때문에 다시 오를 것 같았다."></textarea>
-              <span><b id="reasonCount">0</b>/200자</span>
-            </label>
-            <button id="executeDecisionBtn" class="primary-button full" type="button" disabled>선택하고 다음 시장 보기</button>
-          </div>
-
-          <div id="roundResultPanel" class="panel round-result-panel hidden">
-            <div class="section-heading">
-              <div>
-                <p class="eyebrow">라운드 결과</p>
-                <h2 id="roundResultTitle">시장 변화</h2>
+              <div class="action-buttons" role="group" aria-label="투자 행동 선택">
+                <button id="buyBtn" class="action-button buy" type="button" data-action="buy">
+                  <span aria-hidden="true">▲</span><strong>100,000원 투자 추가</strong><small>현금 → 투자금</small>
+                </button>
+                <button id="sellBtn" class="action-button sell" type="button" data-action="sell">
+                  <span aria-hidden="true">▼</span><strong>100,000원 투자 회수</strong><small>투자금 → 현금</small>
+                </button>
+                <button id="holdBtn" class="action-button hold" type="button" data-action="hold">
+                  <span aria-hidden="true">●</span><strong>유지</strong><small>구성 그대로</small>
+                </button>
               </div>
-              <span id="roundResultChange" class="change-badge">0%</span>
+
+              <label class="reason-field">
+                왜 이렇게 선택했나요?
+                <textarea id="reasonInput" maxlength="200" rows="3" placeholder="예: 최근 계속 떨어졌기 때문에 다시 오를 것 같았다."></textarea>
+                <span><b id="reasonCount">0</b>/200자</span>
+              </label>
+              <button id="executeDecisionBtn" class="primary-button full" type="button" disabled>선택하고 다음 시장 보기</button>
             </div>
-            <div id="roundCalculation" class="calculation-box"></div>
-            <p id="roundReflection" class="reflection-copy"></p>
-            <button id="nextRoundBtn" class="primary-button full" type="button">다음 라운드</button>
+
+            <div id="roundResultPanel" class="round-result-panel hidden" aria-live="polite">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">라운드 결과</p>
+                  <h2 id="roundResultTitle">시장 변화</h2>
+                </div>
+                <span id="roundResultChange" class="change-badge">0%</span>
+              </div>
+              <div id="roundCalculation" class="calculation-box"></div>
+              <p id="roundReflection" class="reflection-copy"></p>
+              <button id="nextRoundBtn" class="primary-button full" type="button">다음 라운드</button>
+            </div>
           </div>
         </div>
       </section>
@@ -363,6 +372,26 @@
     <footer>
       <p>이 프로그램은 실제 투자 방법을 추천하거나 미래 주가를 예측하지 않습니다. 비율과 지수적 변화를 이해하기 위한 수학 시뮬레이션입니다.</p>
     </footer>
+
+    <dialog id="teacherAccessDialog">
+      <div class="dialog-card teacher-access-card">
+        <div class="section-heading">
+          <div><p class="eyebrow">교사 전용</p><h2>교사 암호키 입력</h2></div>
+        </div>
+        <p class="muted">학생이 실수로 교사 화면에 들어가는 것을 막기 위한 수업용 접근키입니다.</p>
+        <form id="teacherAccessForm" class="stack-form">
+          <label>
+            암호키
+            <input id="teacherAccessKeyInput" type="password" autocomplete="off" placeholder="암호키 입력" required />
+          </label>
+          <p id="teacherAccessError" class="form-error hidden" role="alert">암호키가 올바르지 않습니다.</p>
+          <div class="button-row">
+            <button class="primary-button" type="submit">교사 모드 열기</button>
+            <button id="cancelTeacherAccessBtn" class="ghost-button" type="button">취소</button>
+          </div>
+        </form>
+      </div>
+    </dialog>
 
     <dialog id="infoDialog">
       <form method="dialog" class="dialog-card">
